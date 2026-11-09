@@ -135,9 +135,41 @@ document.querySelector('#nameBtn').addEventListener('click', () => {
   const name = prompt('What should we call your star?', state.name);
   if (name && name.trim()) { state.name = name.trim().slice(0, 16); save(); render(); showToast(`Looking lovely, ${state.name}!`); }
 });
+function openGacha() { document.querySelector('#gachaModal').classList.add('open'); }
+function closeGacha() { document.querySelector('#gachaModal').classList.remove('open'); }
+document.querySelector('.capsule-link').addEventListener('click', openGacha);
+document.querySelector('#gachaClose').addEventListener('click', closeGacha);
+document.querySelector('#gachaModal').addEventListener('click', e => {
+  if (e.target.id === 'gachaModal') { closeGacha(); return; }
+  const button = e.target.closest('[data-gacha]'); if (!button) return;
+  const mode = button.dataset.gacha;
+  const price = mode === 'single' ? 6 : mode === 'double' ? 10 : 35;
+  const pulls = mode === 'double' ? 2 : 1;
+  if (state.coins < price) { showToast('Not quite enough coins for this capsule.'); return; }
+  state.coins -= price;
+  const allItems = Object.values(itemMap);
+  const rareItems = ['moon-gown', 'starlet-dress', 'rose-braid', 'midnight-bob', 'moon-crown', 'sun-charm'].map(id => itemMap[id]);
+  const found = [];
+  for (let i = 0; i < pulls; i++) {
+    const pool = mode === 'rare' ? rareItems : allItems;
+    const item = pool[Math.floor(Math.random() * pool.length)];
+    if (state.owned.includes(item.id)) { state.coins += 12; found.push(`${item.name} (duplicate · +12 coins)`); }
+    else { state.owned.push(item.id); found.push(`${item.emoji} ${item.name}`); }
+  }
+  save(); render(); closeGacha();
+  document.querySelector('#resultMedal').textContent = '🎁';
+  document.querySelector('#resultTitle').textContent = found.length > 1 ? 'Double delight!' : 'A little surprise!';
+  document.querySelector('#resultScore').textContent = '✦';
+  document.querySelector('.notice').textContent = 'CAPSULE FINDS';
+  document.querySelector('#resultCopy').textContent = found.join(' · ');
+  document.querySelector('#resultReward').textContent = `-${price} coins · ${state.owned.length} wardrobe pieces`;
+  document.querySelector('#continueBtn').textContent = 'Back to styling';
+  document.querySelector('#modal').classList.add('open');
+});
 document.querySelector('.nav').addEventListener('click', e => {
   const button = e.target.closest('[data-nav]'); if (!button) return;
   document.querySelectorAll('.nav button').forEach(item => item.classList.toggle('active', item === button));
+  if (button.dataset.nav === 'gacha') { openGacha(); return; }
   if (button.dataset.nav === 'collection') { document.querySelector('.wardrobe').scrollIntoView({ behavior: 'smooth', block: 'center' }); showToast('Your closet, your rules.'); }
   if (button.dataset.nav === 'studio') document.querySelector('.studio').scrollIntoView({ behavior: 'smooth', block: 'center' });
   if (button.dataset.nav === 'lookbook') {
