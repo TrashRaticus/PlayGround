@@ -13,20 +13,20 @@ const challenges = [
   { name: 'Golden Hour', icon: '☀️', desc: 'Catch the last light in a warm look made for a magical evening.', tags: ['warm', 'gold', 'party', 'gala'], color: '#efa94e' },
   { name: 'Starlight Soirée', icon: '✨', desc: 'Bring the midnight sky to life with elegant colors and celestial details.', tags: ['moonlight', 'blue', 'purple', 'gala'], color: '#6f8fd5' }
 ];
-const defaults = { name: 'Luna', coins: 120, stars: 0, owned: ['rose-dress', 'soft-waves', 'pink-heels', 'star-earrings'], equipped: { outfit: 'rose-dress', hair: 'soft-waves', shoes: 'pink-heels', accessory: 'star-earrings' }, tab: 'outfit', challenge: 0, completed: [] };
+const defaults = { name: 'Luna', coins: 120, stars: 0, owned: ['rose-dress', 'soft-waves', 'pink-heels', 'star-earrings'], equipped: { outfit: 'rose-dress', hair: 'soft-waves', shoes: 'pink-heels', accessory: 'star-earrings' }, tab: 'outfit', challenge: 0, completed: [], showModels: 1, showTheme: 'moon', showDecor: 'stars', showed: [], showsShared: 0, showQuestClaimed: false, cheers: 0 };
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem('starlet-atelier-save') || 'null');
     if (!saved || typeof saved !== 'object') return structuredClone(defaults);
     const owned = Array.isArray(saved.owned) ? saved.owned.filter(id => itemMap[id]) : defaults.owned;
-    return { ...structuredClone(defaults), ...saved, name: typeof saved.name === 'string' ? saved.name.slice(0, 16) : defaults.name, coins: Math.max(0, Number(saved.coins) || 0), stars: Math.max(0, Number(saved.stars) || 0), owned: [...new Set([...defaults.owned, ...owned])], equipped: { ...defaults.equipped, ...(saved.equipped || {}) }, tab: catalog[saved.tab] ? saved.tab : defaults.tab, challenge: Number.isInteger(saved.challenge) ? ((saved.challenge % challenges.length) + challenges.length) % challenges.length : 0, completed: Array.isArray(saved.completed) ? saved.completed.filter(Number.isInteger) : [] };
+    return { ...structuredClone(defaults), ...saved, name: typeof saved.name === 'string' ? saved.name.slice(0, 16) : defaults.name, coins: Math.max(0, Number(saved.coins) || 0), stars: Math.max(0, Number(saved.stars) || 0), owned: [...new Set([...defaults.owned, ...owned])], equipped: { ...defaults.equipped, ...(saved.equipped || {}) }, tab: catalog[saved.tab] ? saved.tab : defaults.tab, challenge: Number.isInteger(saved.challenge) ? ((saved.challenge % challenges.length) + challenges.length) % challenges.length : 0, completed: Array.isArray(saved.completed) ? saved.completed.filter(Number.isInteger) : [], showModels: [1, 2, 3].includes(saved.showModels) ? saved.showModels : 1, showTheme: ['moon', 'rose', 'sunset'].includes(saved.showTheme) ? saved.showTheme : 'moon', showDecor: ['stars', 'petals', 'lights'].includes(saved.showDecor) ? saved.showDecor : 'stars', showed: Array.isArray(saved.showed) ? saved.showed.filter(Number.isInteger) : [], showsShared: Math.max(0, Number(saved.showsShared) || 0), showQuestClaimed: Boolean(saved.showQuestClaimed), cheers: Math.max(0, Number(saved.cheers) || 0) };
   } catch { return structuredClone(defaults); }
 }
 const state = loadState();
 function save() { try { localStorage.setItem('starlet-atelier-save', JSON.stringify(state)); } catch { /* The game remains playable when storage is unavailable. */ } }
-function selectedItem(category) { return itemMap[state.equipped[category]] || itemMap[defaults.equipped[category]]; }
-function avatarSvg() {
-  const dress = selectedItem('outfit'), hair = selectedItem('hair'), shoes = selectedItem('shoes'), accessory = selectedItem('accessory');
+function selectedItem(category, loadout = state.equipped) { return itemMap[loadout[category]] || itemMap[defaults.equipped[category]]; }
+function avatarSvg(loadout = state.equipped) {
+  const dress = selectedItem('outfit', loadout), hair = selectedItem('hair', loadout), shoes = selectedItem('shoes', loadout), accessory = selectedItem('accessory', loadout);
   const safe = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]);
   return `<defs><linearGradient id="skin" x2="0" y2="1"><stop stop-color="#f8d4c3"/><stop offset="1" stop-color="#e9ad9b"/></linearGradient><linearGradient id="dress" x2="1" y2="1"><stop stop-color="${safe(dress.color)}"/><stop offset="1" stop-color="${safe(dress.color)}" stop-opacity=".72"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#6c477c" flood-opacity=".16"/></filter></defs>
   <ellipse cx="150" cy="470" rx="71" ry="13" fill="#8c6b9b" opacity=".12"/>
@@ -72,12 +72,37 @@ function renderItems() {
   }).join('');
   document.querySelector('#wardrobeCount').textContent = `${state.owned.length} pieces`;
 }
+function showModelLoadout(slot) {
+  if (slot === 0) return { ...state.equipped };
+  const loadout = {};
+  categories.forEach(([category], categoryIndex) => {
+    const owned = catalog[category].map(row => itemMap[row[0]]).filter(item => state.owned.includes(item.id));
+    loadout[category] = owned[(slot * 2 + categoryIndex * 3) % owned.length].id;
+  });
+  return loadout;
+}
+function renderShow() {
+  const themeNames = { moon: 'Moon garden', rose: 'Rose salon', sunset: 'Golden hour' };
+  const decorNames = { stars: 'Starlight', petals: 'Petals', lights: 'Spotlight' };
+  const runway = document.querySelector('#runway');
+  runway.dataset.theme = state.showTheme; runway.dataset.decor = state.showDecor;
+  document.querySelector('#runwayCaption').textContent = `${themeNames[state.showTheme].toUpperCase()} · ${decorNames[state.showDecor].toUpperCase()}`;
+  document.querySelector('#runwayModels').innerHTML = Array.from({ length: state.showModels }, (_, slot) => `<div class="runway-model"><div class="model-name">${slot === 0 ? state.name : slot === 1 ? 'Mira' : 'Poppy'}</div><svg viewBox="0 0 300 500" aria-hidden="true">${avatarSvg(showModelLoadout(slot))}</svg></div>`).join('');
+  document.querySelectorAll('[data-model-count]').forEach(button => button.classList.toggle('selected', Number(button.dataset.modelCount) === state.showModels));
+  document.querySelectorAll('[data-theme]').forEach(button => button.classList.toggle('selected', button.dataset.theme === state.showTheme));
+  document.querySelectorAll('[data-decor]').forEach(button => button.classList.toggle('selected', button.dataset.decor === state.showDecor));
+  const shared = state.showed.includes(state.challenge);
+  document.querySelector('#showStatus').textContent = shared ? `The crowd sent ${state.cheers} cheers your way!` : 'Your first show is ready to share.';
+  document.querySelector('#showQuest').textContent = state.showQuestClaimed ? `Stylist quest complete · ${state.showsShared} shows shared · ${state.cheers} audience cheers` : `Stylist quest: share 3 shows for a 35 🪙 bonus · ${Math.min(3, state.showsShared)}/3 · ${state.cheers} cheers`;
+  document.querySelector('#shareShow').disabled = shared;
+  document.querySelector('#shareShow').textContent = shared ? '✓ Show shared' : 'Share your show ✨';
+}
 function render() {
   document.querySelector('#starCount').textContent = state.stars;
   document.querySelector('#coinCount').textContent = state.coins;
   document.querySelector('#avatarName').textContent = state.name;
   document.querySelector('#avatar').innerHTML = avatarSvg();
-  renderItems(); renderChallenge();
+  renderItems(); renderChallenge(); renderShow();
   const done = state.completed.includes(state.challenge);
   document.querySelector('#submitBtn').disabled = done;
   document.querySelector('#submitBtn').innerHTML = done ? '✓ &nbsp; Challenge complete' : '✨ &nbsp; Show off this look';
@@ -126,7 +151,7 @@ document.querySelector('#continueBtn').addEventListener('click', () => {
   document.querySelector('#modal').classList.remove('open');
   if (state.completed.includes(state.challenge)) {
     state.challenge = (state.challenge + 1) % challenges.length;
-    if (state.completed.length === challenges.length) state.completed = [];
+    if (state.completed.length === challenges.length) { state.completed = []; state.showed = []; }
     save(); render();
   }
 });
@@ -139,6 +164,29 @@ function openGacha() { document.querySelector('#gachaModal').classList.add('open
 function closeGacha() { document.querySelector('#gachaModal').classList.remove('open'); }
 document.querySelector('.capsule-link').addEventListener('click', openGacha);
 document.querySelector('#gachaClose').addEventListener('click', closeGacha);
+function openShow() { document.querySelector('#showModal').classList.add('open'); renderShow(); }
+function closeShow() { document.querySelector('#showModal').classList.remove('open'); }
+document.querySelector('#showClose').addEventListener('click', closeShow);
+document.querySelector('#showModal').addEventListener('click', e => {
+  if (e.target.id === 'showModal') { closeShow(); return; }
+  const modelButton = e.target.closest('[data-model-count]');
+  const themeButton = e.target.closest('.theme-choices [data-theme]');
+  const decorButton = e.target.closest('.decor-choices [data-decor]');
+  if (modelButton) state.showModels = Number(modelButton.dataset.modelCount);
+  if (themeButton) state.showTheme = themeButton.dataset.theme;
+  if (decorButton) state.showDecor = decorButton.dataset.decor;
+  if (modelButton || themeButton || decorButton) { save(); renderShow(); }
+});
+document.querySelector('#shareShow').addEventListener('click', () => {
+  if (state.showed.includes(state.challenge)) return;
+  const reward = 12 + Math.floor(matchScore() / 20);
+  const cheers = 4 + Math.floor(Math.random() * 6);
+  state.coins += reward; state.cheers += cheers; state.showsShared += 1; state.showed.push(state.challenge);
+  let questBonus = 0;
+  if (state.showsShared >= 3 && !state.showQuestClaimed) { state.showQuestClaimed = true; state.coins += 35; questBonus = 35; }
+  save(); render();
+  showToast(`The audience sent ${cheers} cheers${questBonus ? ` · quest bonus +${questBonus} coins` : ` · +${reward} coins`}`);
+});
 document.querySelector('#gachaModal').addEventListener('click', e => {
   if (e.target.id === 'gachaModal') { closeGacha(); return; }
   const button = e.target.closest('[data-gacha]'); if (!button) return;
@@ -170,6 +218,7 @@ document.querySelector('.nav').addEventListener('click', e => {
   const button = e.target.closest('[data-nav]'); if (!button) return;
   document.querySelectorAll('.nav button').forEach(item => item.classList.toggle('active', item === button));
   if (button.dataset.nav === 'gacha') { openGacha(); return; }
+  if (button.dataset.nav === 'runway') { openShow(); return; }
   if (button.dataset.nav === 'collection') { document.querySelector('.wardrobe').scrollIntoView({ behavior: 'smooth', block: 'center' }); showToast('Your closet, your rules.'); }
   if (button.dataset.nav === 'studio') document.querySelector('.studio').scrollIntoView({ behavior: 'smooth', block: 'center' });
   if (button.dataset.nav === 'lookbook') {
